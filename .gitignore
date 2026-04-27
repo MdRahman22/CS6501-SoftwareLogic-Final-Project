@@ -1,0 +1,10 @@
+﻿.lake/
+build/
+*.olean
+*.ilean
+*.c
+*.o
+.vscode/
+.DS_Store
+Thumbs.db
+Project_backup.lean

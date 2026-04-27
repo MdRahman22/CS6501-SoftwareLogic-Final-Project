@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Missile Chase - Lean 4 BigBang Simulation</title>
+
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --panel2: #0b1220;
+      --text: #c9d1d9;
+      --muted: #8b949e;
+      --blue: #58a6ff;
+      --green: #3fb950;
+      --red: #ff7b72;
+      --yellow: #d29922;
+      --border: #30363d;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top, #1f2937 0%, #0d1117 45%, #05070a 100%);
+      color: var(--text);
+      font-family: Consolas, "Courier New", monospace;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+    }
+
+    .shell {
+      width: min(1120px, 96vw);
+      background: rgba(13, 17, 23, 0.94);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 0 45px rgba(88, 166, 255, 0.15);
+      overflow: hidden;
+    }
+
+    .topbar {
+      height: 42px;
+      background: #010409;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 16px;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+
+    .red-dot { background: #ff5f56; }
+    .yellow-dot { background: #ffbd2e; }
+    .green-dot { background: #27c93f; }
+
+    .title {
+      margin-left: 10px;
+      color: var(--text);
+      font-weight: bold;
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 16px;
+      padding: 16px;
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      image-rendering: pixelated;
+    }
+
+    .side {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .card h2 {
+      font-size: 15px;
+      margin: 0 0 10px 0;
+      color: var(--blue);
+    }
+
+    .line {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 5px 0;
+      border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+      font-size: 13px;
+    }
+
+    .line:last-child {
+      border-bottom: none;
+    }
+
+    .label {
+      color: var(--muted);
+    }
+
+    .value {
+      color: var(--text);
+      text-align: right;
+    }
+
+    .target {
+      color: var(--green);
+    }
+
+    .missile {
+      color: var(--red);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    button {
+      cursor: pointer;
+      background: #21262d;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      font-family: inherit;
+    }
+
+    button:hover {
+      background: #30363d;
+    }
+
+    .primary {
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+
+    .danger {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .footer {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    code {
+      color: var(--yellow);
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+      margin-top: 8px;
+    }
+
+    @media (max-width: 850px) {
+      .content {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="shell">
+    <div class="topbar">
+      <span class="dot red-dot"></span>
+      <span class="dot yellow-dot"></span>
+      <span class="dot green-dot"></span>
+      <span class="title">Project.lean - Missile Chase BigBang Game</span>
+    </div>
+
+    <div class="content">
+      <canvas id="screen" width="760" height="520"></canvas>
+
+      <div class="side">
+        <div class="card">
+          <h2>Mode</h2>
+          <div class="line">
+            <span class="label">Current Mode</span>
+            <span class="value" id="modeLabel">idle</span>
+          </div>
+          <div class="line">
+            <span class="label">Tick</span>
+            <span class="value" id="tick">0</span>
+          </div>
+          <div class="line">
+            <span class="label">Win Condition</span>
+            <span class="value" id="goalLabel">Survive 200 ticks</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Target State</h2>
+          <div class="line">
+            <span class="label target">Position(t)</span>
+            <span class="value" id="targetPos"></span>
+          </div>
+          <div class="line">
+            <span class="label target">Velocity(t)</span>
+            <span class="value" id="targetVel"></span>
+          </div>
+          <div class="line">
+            <span class="label target">Acceleration(t)</span>
+            <span class="value" id="targetAcc"></span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Missile State</h2>
+          <div class="line">
+            <span class="label missile">Position(t)</span>
+            <span class="value" id="missilePos"></span>
+          </div>
+          <div class="line">
+            <span class="label missile">Velocity(t)</span>
+            <span class="value" id="missileVel"></span>
+          </div>
+          <div class="line">
+            <span class="label missile">Acceleration(t)</span>
+            <span class="value" id="missileAcc"></span>
+          </div>
+          <div class="line">
+            <span class="label">Behavior</span>
+            <span class="value" id="missileBehavior"></span>
+          </div>
+          <div class="line">
+            <span class="label">Distance</span>
+            <span class="value" id="distance"></span>
+          </div>
+          <div class="line">
+            <span class="label">Status</span>
+            <span class="value" id="status"></span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Controls</h2>
+          <div class="controls">
+            <button class="primary" id="playBtn">Play Interactive</button>
+            <button id="demoBtn">Watch Lean Demo</button>
+            <button id="pauseBtn">Pause</button>
+            <button class="danger" id="restartBtn">Restart</button>
+          </div>
+          <div class="hint">
+            Use WASD or arrow keys. Avoid the missile and do not hit the border.
+            Survive to 200 ticks to win.
+          </div>
+        </div>
+
+        <div class="card footer">
+          Lean produces <code>frames.json</code> for demo replay.
+          Interactive mode mirrors the same BigBang idea:
+          <code>World</code>, <code>onTick</code>, <code>onKey</code>, and <code>stopWhen</code>.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /*
+      Two modes:
+
+      1. Lean demo mode:
+         Reads frames.json generated by Project.lean.
+
+      2. Interactive mode:
+         Lets the player control the target while the missile chases.
+
+      The Lean file is still the proof-backed core.
+    */
+
+    const canvas = document.getElementById("screen");
+    const ctx = canvas.getContext("2d");
+
+    /*
+      Lower number means faster game.
+    */
+    const frameDelayMs = 65;
+
+    /*
+      Player wins by surviving this many ticks.
+    */
+    const winTick = 200;
+
+    /*
+      Game board bounds.
+      Hitting this border ends the interactive game.
+    */
+    const minX = 0;
+    const maxX = 35;
+    const minY = -4;
+    const maxY = 18;
+
+    /*
+      Convert game coordinates to canvas pixels.
+    */
+    const world = {
+      scale: 18,
+      offsetX: 55,
+      offsetY: 390
+    };
+
+    let mode = "idle";
+    let paused = false;
+    let lastStep = 0;
+
+    let demoFrames = [];
+    let demoIndex = 0;
+    let demoDone = false;
+
+    let liveState = null;
+    let targetTrail = [];
+    let missileTrail = [];
+
+    function makeVec(x, y) {
+      return { x: x, y: y };
+    }
+
+    function makePoint(x, y) {
+      return { x: x, y: y };
+    }
+
+    /*
+      Initial interactive state.
+      This mirrors the Lean demoInit idea.
+    */
+    function makeInitialState() {
+      return withDerivedFields({
+        tick: 0,
+        targetPos: makePoint(18, 6),
+        targetVel: makeVec(1, 0),
+        targetAcc: makeVec(0, 0),
+        missilePos: makePoint(2, 2),
+        missileVel: makeVec(0, 0),
+        missileAcc: makeVec(0, 0),
+        missileBehavior: "START",
+        crashed: false,
+        won: false
+      });
+    }
+
+    function screenX(x) {
+      return world.offsetX + x * world.scale;
+    }
+
+    function screenY(y) {
+      return world.offsetY - y * world.scale;
+    }
+
+    function inBounds(p) {
+      return p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY;
+    }
+
+    function clamp(value, low, high) {
+      return Math.max(low, Math.min(high, value));
+    }
+
+    function clampPoint(p) {
+      return makePoint(
+        clamp(p.x, minX, maxX),
+        clamp(p.y, minY, maxY)
+      );
+    }
+
+    /*
+      Position plus velocity gives new position.
+    */
+    function addPointVec(p, v) {
+      return makePoint(p.x + v.x, p.y + v.y);
+    }
+
+    function addVec(v, w) {
+      return makeVec(v.x + w.x, v.y + w.y);
+    }
+
+    /*
+      Acceleration is change in velocity.
+    */
+    function subVec(v, w) {
+      return makeVec(v.x - w.x, v.y - w.y);
+    }
+
+    function stepAxis(current, target) {
+      if (current < target) return 1;
+      if (target < current) return -1;
+      return 0;
+    }
+
+    /*
+      Normal chase:
+      The missile moves toward the larger distance axis.
+    */
+    function chaseVelocity(missile, target) {
+      const dx = target.x - missile.x;
+      const dy = target.y - missile.y;
+
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        return makeVec(stepAxis(missile.x, target.x), 0);
+      } else {
+        return makeVec(0, stepAxis(missile.y, target.y));
+      }
+    }
+
+    /*
+      Lock-on chase:
+      The missile can move diagonally.
+    */
+    function lockOnVelocity(missile, target) {
+      return makeVec(
+        stepAxis(missile.x, target.x),
+        stepAxis(missile.y, target.y)
+      );
+    }
+
+    /*
+      Predict where the target will be after a few ticks.
+    */
+    function predictTargetPosition(targetPos, targetVel, stepsAhead) {
+      return clampPoint(makePoint(
+        targetPos.x + targetVel.x * stepsAhead,
+        targetPos.y + targetVel.y * stepsAhead
+      ));
+    }
+
+    function manhattanDistance(p, q) {
+      return Math.abs(p.x - q.x) + Math.abs(p.y - q.y);
+    }
+
+    /*
+      Add derived fields to the state.
+      These are computed from the core position data.
+    */
+    function withDerivedFields(s) {
+      s.distance = manhattanDistance(s.missilePos, s.targetPos);
+      s.caught = s.missilePos.x === s.targetPos.x && s.missilePos.y === s.targetPos.y;
+
+      if (s.crashed === undefined) {
+        s.crashed = false;
+      }
+
+      if (s.won === undefined) {
+        s.won = false;
+      }
+
+      if (!s.missileBehavior) {
+        s.missileBehavior = "WAIT";
+      }
+
+      if (s.tick >= winTick && !s.caught && !s.crashed) {
+        s.won = true;
+      }
+
+      return s;
+    }
+
+    /*
+      BigBang onTick.
+
+      This is the main interactive update:
+      - target moves by velocity
+      - wall crash is checked
+      - missile chooses a chase behavior
+      - velocity and acceleration fields update
+    */
+    function onTick(s) {
+      const rawTargetPos = addPointVec(s.targetPos, s.targetVel);
+
+      if (!inBounds(rawTargetPos)) {
+        return withDerivedFields({
+          tick: s.tick + 1,
+          targetPos: clampPoint(rawTargetPos),
+          targetVel: s.targetVel,
+          targetAcc: makeVec(0, 0),
+          missilePos: s.missilePos,
+          missileVel: makeVec(0, 0),
+          missileAcc: subVec(makeVec(0, 0), s.missileVel),
+          missileBehavior: "BORDER",
+          crashed: true,
+          won: false
+        });
+      }
+
+      const newTargetPos = rawTargetPos;
+      const nextTick = s.tick + 1;
+      const distanceNow = manhattanDistance(s.missilePos, newTargetPos);
+
+      let newMissileVel;
+      let behavior;
+
+      if (nextTick % 18 === 0 && distanceNow >= 8) {
+        const predicted = predictTargetPosition(newTargetPos, s.targetVel, 3);
+        newMissileVel = lockOnVelocity(s.missilePos, predicted);
+        behavior = "SCAN";
+      } else if (nextTick % 7 === 0) {
+        newMissileVel = lockOnVelocity(s.missilePos, newTargetPos);
+        behavior = "LOCK";
+      } else {
+        newMissileVel = chaseVelocity(s.missilePos, newTargetPos);
+        behavior = "CHASE";
+      }
+
+      let newMissilePos = clampPoint(addPointVec(s.missilePos, newMissileVel));
+
+      /*
+        Occasional burst if far away.
+      */
+      if (nextTick % 25 === 0 && distanceNow >= 12) {
+        const extraVel = chaseVelocity(newMissilePos, newTargetPos);
+        newMissilePos = clampPoint(addPointVec(newMissilePos, extraVel));
+        newMissileVel = addVec(newMissileVel, extraVel);
+        behavior = "BURST";
+      }
+
+      const newMissileAcc = subVec(newMissileVel, s.missileVel);
+
+      return withDerivedFields({
+        tick: nextTick,
+        targetPos: newTargetPos,
+        targetVel: s.targetVel,
+        targetAcc: makeVec(0, 0),
+        missilePos: newMissilePos,
+        missileVel: newMissileVel,
+        missileAcc: newMissileAcc,
+        missileBehavior: behavior,
+        crashed: false,
+        won: false
+      });
+    }
+
+    /*
+      Change target velocity and store target acceleration.
+    */
+    function setTargetVelocity(s, newVel) {
+      s.targetAcc = subVec(newVel, s.targetVel);
+      s.targetVel = newVel;
+      return s;
+    }
+
+    /*
+      BigBang onKey.
+      The player controls the green target.
+    */
+    function onKey(s, key) {
+      if (key === "ArrowUp" || key === "w") {
+        return setTargetVelocity(s, makeVec(0, 1));
+      } else if (key === "ArrowDown" || key === "s") {
+        return setTargetVelocity(s, makeVec(0, -1));
+      } else if (key === "ArrowLeft" || key === "a") {
+        return setTargetVelocity(s, makeVec(-1, 0));
+      } else if (key === "ArrowRight" || key === "d") {
+        return setTargetVelocity(s, makeVec(1, 0));
+      } else if (key === " ") {
+        return setTargetVelocity(s, makeVec(0, 0));
+      }
+
+      return s;
+    }
+
+    /*
+      BigBang stopWhen.
+      The game ends when caught, crashed, or survived.
+    */
+    function stopWhen(s) {
+      return s.caught || s.crashed || s.won;
+    }
+
+    const missileBigBang = {
+      onTick: onTick,
+      onKey: onKey,
+      stopWhen: stopWhen,
+      toDraw: drawFrame
+    };
+
+    function resetTrails() {
+      targetTrail = [];
+      missileTrail = [];
+    }
+
+    function rememberTrail(frame) {
+      targetTrail.push(frame.targetPos);
+      missileTrail.push(frame.missilePos);
+
+      if (targetTrail.length > 40) targetTrail.shift();
+      if (missileTrail.length > 40) missileTrail.shift();
+    }
+
+    function drawGrid() {
+      ctx.fillStyle = "#0b1220";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.strokeStyle = "rgba(88, 166, 255, 0.12)";
+      ctx.lineWidth = 1;
+
+      for (let x = 0; x <= canvas.width; x += world.scale) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+
+      for (let y = 0; y <= canvas.height; y += world.scale) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+
+      /*
+        Snake-style border.
+      */
+      ctx.strokeStyle = "rgba(255, 123, 114, 0.8)";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(
+        screenX(minX) - 9,
+        screenY(maxY) - 9,
+        (maxX - minX) * world.scale + 18,
+        (maxY - minY) * world.scale + 18
+      );
+
+      ctx.strokeStyle = "rgba(88, 166, 255, 0.45)";
+      ctx.lineWidth = 1;
+
+      ctx.beginPath();
+      ctx.moveTo(0, world.offsetY);
+      ctx.lineTo(canvas.width, world.offsetY);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(world.offsetX, 0);
+      ctx.lineTo(world.offsetX, canvas.height);
+      ctx.stroke();
+    }
+
+    function drawTrail(points, color) {
+      if (points.length === 0) return;
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+
+      for (let i = 0; i < points.length; i++) {
+        const p = points[i];
+        const x = screenX(p.x);
+        const y = screenY(p.y);
+
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+
+      ctx.stroke();
+    }
+
+    function drawTarget(p) {
+      const x = screenX(p.x);
+      const y = screenY(p.y);
+
+      ctx.fillStyle = "#3fb950";
+      ctx.shadowColor = "#3fb950";
+      ctx.shadowBlur = 18;
+      ctx.fillRect(x - 8, y - 8, 16, 16);
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = "#c9d1d9";
+      ctx.fillText("TARGET", x + 12, y - 12);
+    }
+
+    function drawMissile(p, caught) {
+      const x = screenX(p.x);
+      const y = screenY(p.y);
+
+      ctx.fillStyle = caught ? "#d29922" : "#ff7b72";
+      ctx.shadowColor = caught ? "#d29922" : "#ff7b72";
+      ctx.shadowBlur = 18;
+
+      ctx.beginPath();
+      ctx.moveTo(x + 12, y);
+      ctx.lineTo(x - 10, y - 8);
+      ctx.lineTo(x - 10, y + 8);
+      ctx.closePath();
+      ctx.fill();
+
+      if (caught) {
+        ctx.strokeStyle = "#d29922";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(x, y, 24, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "#c9d1d9";
+      ctx.fillText(caught ? "CAUGHT" : "MISSILE", x + 12, y + 22);
+    }
+
+    function updateHUD(frame) {
+      document.getElementById("modeLabel").textContent = mode;
+      document.getElementById("tick").textContent = frame.tick;
+
+      document.getElementById("targetPos").textContent =
+        "(" + frame.targetPos.x + ", " + frame.targetPos.y + ")";
+      document.getElementById("targetVel").textContent =
+        "(" + frame.targetVel.x + ", " + frame.targetVel.y + ")";
+      document.getElementById("targetAcc").textContent =
+        "(" + frame.targetAcc.x + ", " + frame.targetAcc.y + ")";
+
+      document.getElementById("missilePos").textContent =
+        "(" + frame.missilePos.x + ", " + frame.missilePos.y + ")";
+      document.getElementById("missileVel").textContent =
+        "(" + frame.missileVel.x + ", " + frame.missileVel.y + ")";
+      document.getElementById("missileAcc").textContent =
+        "(" + frame.missileAcc.x + ", " + frame.missileAcc.y + ")";
+
+      document.getElementById("missileBehavior").textContent =
+        frame.missileBehavior || "LEAN DEMO";
+
+      document.getElementById("distance").textContent = frame.distance;
+
+      const statusElement = document.getElementById("status");
+
+      if (frame.won) {
+        statusElement.textContent = "SURVIVED";
+        statusElement.style.color = "#3fb950";
+      } else if (frame.crashed) {
+        statusElement.textContent = "WALL CRASH";
+        statusElement.style.color = "#ff7b72";
+      } else if (frame.caught) {
+        statusElement.textContent = "CAUGHT";
+        statusElement.style.color = "#d29922";
+      } else {
+        statusElement.textContent = "CHASING";
+        statusElement.style.color = "#58a6ff";
+      }
+    }
+
+    function drawFrame(frame) {
+      drawGrid();
+      drawTrail(targetTrail, "rgba(63, 185, 80, 0.65)");
+      drawTrail(missileTrail, "rgba(255, 123, 114, 0.65)");
+      drawTarget(frame.targetPos);
+      drawMissile(frame.missilePos, frame.caught);
+      updateHUD(frame);
+    }
+
+    function startInteractive() {
+      mode = "Interactive";
+      paused = false;
+      demoDone = false;
+      liveState = makeInitialState();
+      resetTrails();
+      rememberTrail(liveState);
+      missileBigBang.toDraw(liveState);
+      document.getElementById("pauseBtn").textContent = "Pause";
+    }
+
+    function startDemo() {
+      if (demoFrames.length === 0) {
+        mode = "demo missing";
+        drawGrid();
+        ctx.fillStyle = "#ff7b72";
+        ctx.font = "18px Consolas";
+        ctx.fillText("Could not load frames.json.", 40, 80);
+        ctx.fillStyle = "#c9d1d9";
+        ctx.fillText("Run: lake env lean --run Project.lean", 40, 120);
+        return;
+      }
+
+      mode = "lean demo";
+      paused = false;
+      demoDone = false;
+      demoIndex = 0;
+      resetTrails();
+      rememberTrail(demoFrames[demoIndex]);
+      drawFrame(demoFrames[demoIndex]);
+      document.getElementById("pauseBtn").textContent = "Pause";
+    }
+
+    function restartCurrentMode() {
+      if (mode === "lean demo" || mode === "lean demo done") {
+        startDemo();
+      } else {
+        startInteractive();
+      }
+    }
+
+    function loop(timestamp) {
+      if (!paused && timestamp - lastStep > frameDelayMs) {
+        lastStep = timestamp;
+
+        if (mode === "interactive" && liveState !== null) {
+          if (!missileBigBang.stopWhen(liveState)) {
+            liveState = missileBigBang.onTick(liveState);
+            rememberTrail(liveState);
+          }
+
+          missileBigBang.toDraw(liveState);
+        }
+
+        /*
+          Demo mode now stops after caught or after the last frame.
+          It no longer loops forever after the catch.
+        */
+        if (mode === "lean demo" && demoFrames.length > 0 && !demoDone) {
+          const currentFrame = demoFrames[demoIndex];
+
+          if (currentFrame.caught || demoIndex >= demoFrames.length - 1) {
+            demoDone = true;
+            mode = "lean demo done";
+            drawFrame(currentFrame);
+          } else {
+            demoIndex = demoIndex + 1;
+            rememberTrail(demoFrames[demoIndex]);
+            drawFrame(demoFrames[demoIndex]);
+          }
+        }
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    document.addEventListener("keydown", function (event) {
+      const keys = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d", " "];
+
+      if (keys.includes(event.key)) {
+        event.preventDefault();
+      }
+
+      if (mode === "interactive" && liveState !== null && !missileBigBang.stopWhen(liveState)) {
+        liveState = missileBigBang.onKey(liveState, event.key);
+        missileBigBang.toDraw(liveState);
+      }
+    });
+
+    document.getElementById("playBtn").addEventListener("click", function () {
+      startInteractive();
+    });
+
+    document.getElementById("demoBtn").addEventListener("click", function () {
+      startDemo();
+    });
+
+    document.getElementById("pauseBtn").addEventListener("click", function () {
+      paused = !paused;
+      document.getElementById("pauseBtn").textContent = paused ? "Play" : "Pause";
+    });
+
+    document.getElementById("restartBtn").addEventListener("click", function () {
+      restartCurrentMode();
+    });
+
+    fetch("frames.json")
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (data) {
+        demoFrames = data.frames;
+      })
+      .catch(function (error) {
+        console.error(error);
+        demoFrames = [];
+      });
+
+    ctx.font = "14px Consolas";
+    startInteractive();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
