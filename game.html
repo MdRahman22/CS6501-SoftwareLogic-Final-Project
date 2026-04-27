@@ -726,7 +726,8 @@
     }
 
     function updateHUD(frame) {
-      document.getElementById("modeLabel").textContent = mode;
+      document.getElementById("modeLabel").textContent =
+      mode.charAt(0).toUpperCase() + mode.slice(1);
       document.getElementById("tick").textContent = frame.tick;
 
       document.getElementById("targetPos").textContent =
@@ -775,7 +776,7 @@
     }
 
     function startInteractive() {
-      mode = "Interactive";
+      mode = "interactive";
       paused = false;
       demoDone = false;
       liveState = makeInitialState();
